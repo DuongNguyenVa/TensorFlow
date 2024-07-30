@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Detection with YOLO</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+        #outputCanvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <h1>YOLO Object Det  ection</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <canvas id="outputCanvas"></canvas>
+    <script src="app.js"></script>
+</body>
+</html>
+
+
+
+
+
+let model;
+
+// Load the TensorFlow.js model
+async function loadModel() {
+    model = await tf.loadGraphModel('https://raw.githubusercontent.com/DuongNguyenVa/TensorFlow/main/modeljshachiban/savemodel/avemodel/model.json');
+    console.log('Model loaded');
+}
+
+// Preprocess the image
+function preprocessImage(image) {
+    // Create a canvas to resize the image
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const targetSize = 224;  // Size required by the model
+    canvas.width = targetSize;
+    canvas.height = targetSize;
+
+    // Draw the image onto the canvas with resizing
+    ctx.drawImage(image, 0, 0, targetSize, targetSize);
+
+    // Convert the canvas image to a tensor
+    let imgTensor = tf.browser.fromPixels(canvas);
+
+    // Normalize the image if required (depends on your model)
+    imgTensor = imgTensor.toInt();
+
+    // Add a batch dimension (1, height, width, channels)
+    imgTensor = imgTensor.expandDims(0);
+
+    // Transpose the tensor from [1, height, width, channels] to [1, channels, height, width]
+  //  imgTensor = imgTensor.transpose([0, 3, 1, 2]);
+
+    return imgTensor;
+}
+
+// Run object detection on the image
+async function detectObjects(image) {
+    if (!model) {
+        console.error('Model is not loaded');
+        return;
+    }
+
+    // Preprocess the image
+    const inputTensor = preprocessImage(image);
+
+    // Check the shape of the tensor
+   // console.log('Input tensor shape:', inputTensor.shape);
+
+    // Run inference
+    //const predictions = await model.executeAsync({ 'input': inputTensor });
+const predictions = await model.executeAsync( inputTensor );
+    // Postprocess and display results
+    processPredictions(predictions);
+
+    // Clean up
+    inputTensor.dispose();
+    predictions.dispose();
+}
+
+// Postprocess predictions
+function processPredictions(predictions) {
+  console.log(predictions[0].arraySync())
+  //console.log(predictions.arraySync()[0])
+    // Example postprocessing code
+    // This should be adapted based on the model's output format
+    const output = predictions.arraySync(); // Adjust this based on your model's output
+
+  
+  
+    // Draw bounding boxes on the canvas
+    const canvas = document.getElementById('outputCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 640;  // Make sure canvas size matches the image size
+    canvas.height = 640;
+
+    // Clear previous drawings
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Example code to draw boxes - adjust based on output format
+    output.forEach(detection => {
+        const [x, y, width, height, score] = detection;  // Adjust based on your model's output
+
+        ctx.beginPath();
+        ctx.rect(x, y, width, height);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'red';
+        ctx.stroke();
+        ctx.fillStyle = 'red';
+        ctx.fillText(`Score: ${score}`, x, y > 10 ? y - 10 : 10);
+    });
+
+    // Dispose tensors to free memory
+    predictions.dispose();
+}
+
+// Handle image input
+document.getElementById('imageInput').addEventListener('change', event => {
+    const file = event.target.files[0];
+    if (file) {
+        const img = new Image();
+        img.onload = () => detectObjects(img);
+        img.src = URL.createObjectURL(file);
+    }
+});
+
+// Load the model
+loadModel();
